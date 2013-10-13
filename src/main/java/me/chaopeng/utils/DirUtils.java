@@ -146,6 +146,7 @@ public class DirUtils {
 	 */
 	public static void rm(String path, String... args) {
 		File file = new File(path);
+		
 		// 目录的话相当于 rm -r path/* 不会删除文件夹 正则表达式只对一层有效
 		if (file.isDirectory()) {
 			File[] childFiles = ls(path, args);
@@ -154,26 +155,30 @@ public class DirUtils {
 					rm(childFile.getPath());
 				}
 
-				childFile.delete();
+				if(!childFile.delete()){
+					logger.error("file delete failed. filename="+childFile.getAbsolutePath());
+				}
 			}
 		} else {
-			file.delete();
+			if(!file.delete()){
+				logger.error("file delete failed. filename="+file.getAbsolutePath());
+			}
 		}
 	}
 
 	/**
 	 * 创建文件夹
 	 */
-	public static void mkdir(String path) {
+	public static boolean mkdir(String path) {
 		File file = new File(path);
-		file.mkdirs();
+		return file.mkdirs();
 	}
 
 	/**
 	 * 删除空文件夹
 	 */
-	public static void rmdir(String path) {
+	public static boolean rmdir(String path) {
 		File file = new File(path);
-		file.delete();
+		return file.delete();
 	}
 }

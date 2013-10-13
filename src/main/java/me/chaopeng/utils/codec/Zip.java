@@ -18,10 +18,10 @@ public class Zip {
 	  * 压缩
 	  * 
 	  * @param data 待压缩数据
-	  * @return 压缩返回
+	  * @return return byte[] after zip or null if zip failed
 	  */
 	public static byte[] zip(byte[] data){
-		byte[] output = new byte[0];
+		byte[] output = null;
 
 		Deflater compresser = new Deflater();
 
@@ -37,7 +37,6 @@ public class Zip {
 			}
 			output = bos.toByteArray();
 		} catch (Exception e) {
-			output = data;
 			logger.error("zip error", e);
 		} finally {
 			CloseUtils.close(bos);
@@ -49,10 +48,10 @@ public class Zip {
 	 /**
 	  * 解压缩 
 	  * @param data 待解压数据
-	  * @return 解压后数据
+	  * @return return byte[] after unzip or null if unzip failed
 	  */
 	public static byte[] unzip(byte[] data) {
-		byte[] output = new byte[0];
+		byte[] output = null;
 
 		Inflater decompresser = new Inflater();
 		decompresser.reset();
@@ -67,7 +66,6 @@ public class Zip {
 			}
 			output = o.toByteArray();
 		} catch (Exception e) {
-			output = data;
 			logger.error("zip error", e);
 		} finally {
 			CloseUtils.close(o);

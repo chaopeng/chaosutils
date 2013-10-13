@@ -58,7 +58,7 @@ public class BaseX {
 	 * @return 10进制数字
 	 * @throws BaseXException 
 	 */
-	public static long BaseXTOBase10(String numStr, int fromBase) {
+	public static long baseXTOBase10(String numStr, int fromBase) {
 		if(fromBase<2 || fromBase>62) {
 			logger.error("base is error");
 			return 0;
