@@ -1,8 +1,8 @@
 package me.chaopeng.utils;
 
-import java.util.UUID;
-
 import org.apache.commons.codec.binary.Base64;
+
+import java.util.UUID;
 
 /**
  * UUID工具
@@ -79,4 +79,60 @@ public class UUIDUtils {
 		}
 		return value;
 	}
+
+	/**
+	 * twitter distributed uuid implementation <a href="http://engineering.custommade.com/simpleflake-distributed-id-generation-for-the-lazy">see</a>
+	 * <p>
+	 * +-------------------------------------------------+------------------+-----------------------+ <br>
+	 * | 41bit millis timestamp from 2010-01-01 00:00:00 | 12bit mechine-id | 10bit sequence number | <br>
+	 * +-------------------------------------------------+------------------+-----------------------+ <br>
+	 *
+	 * @param mechineId must less than 4096
+	 * @param max must less than 1024
+	 * @return 64bit uuid
+	 */
+	public static long simpleflake(int mechineId, int min, int max){
+		long res = 0;
+		res += (System.currentTimeMillis() - 1262275200000L) << 23;
+		res += (mechineId % 0x1000) << 10;
+		synchronized (SEQUENCE_LOCK) {
+			if (sequence < min) {
+				sequence = min;
+			} else {
+				++sequence;
+			}
+			if (sequence == max) {
+				sequence = min;
+			}
+			res += sequence;
+		}
+		return res;
+	}
+
+	/**
+	 * uuid
+	 *
+	 * @param mechineId
+	 * @return
+	 */
+	public static long simpleflake(int mechineId){
+		long res = 0;
+		res += (System.currentTimeMillis() - 1262275200000L) << 23;
+		res += (mechineId % 0x1000) << 10;
+		synchronized (SEQUENCE_LOCK) {
+			if (sequence < 0) {
+				sequence = 0;
+			} else {
+				++sequence;
+			}
+			if (sequence == 1024) {
+				sequence = 1024;
+			}
+			res += sequence;
+		}
+		return res;
+	}
+
+	private final static Object SEQUENCE_LOCK = new Object();
+	private static Integer sequence = 0;
 }

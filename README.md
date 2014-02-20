@@ -9,9 +9,9 @@ ChaosUtils目前包含:
 * ScriptsUtils java中执行js脚本工具
 * UUIDUtils uuid工具，含uuid压缩
 * CloseUtils 资源关闭工具，方便关闭可以关闭的资源
+* StringUtils 字符串工具，字符串拼接与大小写转换
 
 ChaosUtils将不会包含:
 
 * DateUtils 日期工具建议使用 [joda-time](http://www.joda.org/joda-time/) ,**请不要考虑使用Java原生日期工具，SimpleDateFormat是非线程安全的，[详细](http://docs.oracle.com/javase/6/docs/api/java/text/SimpleDateFormat.html)**
 * 容器简易操作 java7已有钻石语法，java8将支持lambda，[guava](https://code.google.com/p/guava-libraries/)也有相应的实现。
-* StringUtils 字符串工具曾经出现过，但是有了guava，不再需要了。
