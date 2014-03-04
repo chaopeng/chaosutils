@@ -2,19 +2,20 @@ package me.chaopeng.utils;
 
 import org.apache.commons.codec.binary.Base64;
 
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * UUID工具
- * 
+ *
  * @author chao
- * 
  */
 public class UUIDUtils {
 
 	/**
 	 * 获取一个uuid串
-	 * 
+	 *
 	 * @return 完整的uuid串
 	 */
 	public String uuid() {
@@ -23,15 +24,17 @@ public class UUIDUtils {
 
 	/**
 	 * 获取一个短uuid,使用base64压缩
+	 *
 	 * @return 压缩后的uuid串
 	 */
 	public static String shortUuid() {
 		UUID uuid = UUID.randomUUID();
 		return compressedUUID(uuid);
 	}
-	
+
 	/**
 	 * unrecommended 压缩uuid串
+	 *
 	 * @param uuidString
 	 * @return 压缩后的uuid串
 	 */
@@ -42,6 +45,7 @@ public class UUIDUtils {
 
 	/**
 	 * unrecommended 解压缩uuid串
+	 *
 	 * @param compressedUuid
 	 * @return 完整的uuid串
 	 */
@@ -71,7 +75,7 @@ public class UUIDUtils {
 			bytes[offset++] = (byte) ((value >> 8 * i) & 0xFF);
 		}
 	}
-	
+
 	private static long bytes2long(byte[] bytes, int offset) {
 		long value = 0;
 		for (int i = 7; i > -1; i--) {
@@ -80,59 +84,91 @@ public class UUIDUtils {
 		return value;
 	}
 
-	/**
-	 * twitter distributed uuid implementation <a href="http://engineering.custommade.com/simpleflake-distributed-id-generation-for-the-lazy">see</a>
-	 * <p>
-	 * +-------------------------------------------------+------------------+-----------------------+ <br>
-	 * | 41bit millis timestamp from 2010-01-01 00:00:00 | 12bit mechine-id | 10bit sequence number | <br>
-	 * +-------------------------------------------------+------------------+-----------------------+ <br>
-	 *
-	 * @param mechineId must less than 4096
-	 * @param max must less than 1024
-	 * @return 64bit uuid
-	 */
-	public static long simpleflake(int mechineId, int min, int max){
-		long res = 0;
-		res += (System.currentTimeMillis() - 1262275200000L) << 23;
-		res += (mechineId % 0x1000) << 10;
-		synchronized (SEQUENCE_LOCK) {
-			if (sequence < min) {
-				sequence = min;
-			} else {
-				++sequence;
-			}
-			if (sequence == max) {
-				sequence = min;
-			}
-			res += sequence;
-		}
-		return res;
-	}
 
 	/**
-	 * uuid
-	 *
-	 * @param mechineId
-	 * @return
+	 * twitter distributed uuid implementation <a href="https://github.com/twitter/snowflake">see</a>
+	 * <p/>
+	 * +-------------------------+------------------+-----------------------+ <br>
+	 * | 41bit millis timestamp  | 6bit mechine id  | 17bit sequence number | <br>
+	 * +-------------------------+------------------+-----------------------+ <br>
 	 */
-	public static long simpleflake(int mechineId){
-		long res = 0;
-		res += (System.currentTimeMillis() - 1262275200000L) << 23;
-		res += (mechineId % 0x1000) << 10;
-		synchronized (SEQUENCE_LOCK) {
-			if (sequence < 0) {
-				sequence = 0;
-			} else {
-				++sequence;
+	public static class Snowflake {
+		private final int mechineId;
+
+		private int sequence = 0;
+		private final ConcurrentLinkedQueue<Long> queue = new ConcurrentLinkedQueue<>();
+		private volatile int size = 0;
+		private final AtomicBoolean filling = new AtomicBoolean(false);
+
+		private final static int MECHINE_ID_BITS = 6;
+		private final static int SEQUENCE_BITS = 17;
+		private final static int SEQUENCE_MASK = -1 ^ (-1 << SEQUENCE_BITS);
+
+		private final static int MECHINE_ID_SHIFT = SEQUENCE_BITS;
+		private final static int TIMESTAMP_SHIFT = SEQUENCE_BITS + MECHINE_ID_BITS;
+
+		private static Snowflake ins;
+
+		/**
+		 * @param mechineId must < 64
+		 */
+		public Snowflake(int mechineId) {
+			if (mechineId >= 64) {
+				throw new RuntimeException("mechineId must < 64");
 			}
-			if (sequence == 1024) {
-				sequence = 1024;
-			}
-			res += sequence;
+
+			this.mechineId = mechineId << MECHINE_ID_SHIFT;
+			ins = this;
+			fill();
 		}
-		return res;
+
+		/**
+		 * must ensure Snowflake(mechineId) is called
+		 * @return 64bit uuid
+		 */
+		public static Long get() {
+			Long res = ins.queue.poll();
+			--ins.size;
+			if (ins.size < 1000 && !ins.filling.get()) {
+				ins.fill();
+			}
+
+			return res;
+		}
+
+		private synchronized void fill() {
+			if (size < 1000 && !filling.get()) {
+				filling.set(true);
+				ThreadPool.getPool().execute(new Runnable() {
+
+					private long lastTimestamp = System.currentTimeMillis();
+
+					@Override
+					public void run() {
+						int s = queue.size();
+						while (++s < 10000) {
+							sequence = (sequence + 1) & SEQUENCE_MASK;
+							if(sequence == 0) {
+								long time = System.currentTimeMillis();
+								while (time <= lastTimestamp) {
+									time = System.currentTimeMillis();
+								}
+								lastTimestamp = time;
+							}
+
+							long res = 0;
+							res += lastTimestamp << TIMESTAMP_SHIFT;
+							res += mechineId;
+
+							res += sequence;
+							queue.add(res);
+						}
+						size = queue.size();
+						filling.set(false);
+					}
+				});
+			}
+		}
 	}
 
-	private final static Object SEQUENCE_LOCK = new Object();
-	private static Integer sequence = 0;
 }
