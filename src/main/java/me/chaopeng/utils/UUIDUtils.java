@@ -100,6 +100,9 @@ public class UUIDUtils {
 		private volatile int size = 0;
 		private final AtomicBoolean filling = new AtomicBoolean(false);
 
+		/**GMT 2010-01-01 00:00:00*/
+		private final static long Y2010 = 1259539200000L;
+
 		private final static int MECHINE_ID_BITS = 6;
 		private final static int SEQUENCE_BITS = 17;
 		private final static int SEQUENCE_MASK = -1 ^ (-1 << SEQUENCE_BITS);
@@ -124,6 +127,7 @@ public class UUIDUtils {
 
 		/**
 		 * must ensure Snowflake(mechineId) is called
+		 *
 		 * @return 64bit uuid
 		 */
 		public static Long get() {
@@ -136,37 +140,41 @@ public class UUIDUtils {
 			return res;
 		}
 
-		private synchronized void fill() {
-			if (size < 1000 && !filling.get()) {
-				filling.set(true);
-				ThreadPool.getPool().execute(new Runnable() {
+		private void fill() {
+			if (size < 1000) {
+				if (filling.compareAndSet(false, true)) {
 
-					private long lastTimestamp = System.currentTimeMillis();
+					ThreadPool.getPool().execute(new Runnable() {
 
-					@Override
-					public void run() {
-						int s = queue.size();
-						while (++s < 10000) {
-							sequence = (sequence + 1) & SEQUENCE_MASK;
-							if(sequence == 0) {
-								long time = System.currentTimeMillis();
-								while (time <= lastTimestamp) {
-									time = System.currentTimeMillis();
+						private long lastTimestamp = System.currentTimeMillis();
+						private long t = lastTimestamp - Y2010;
+
+						@Override
+						public void run() {
+							int s = queue.size();
+							while (++s < 10000) {
+								sequence = (sequence + 1) & SEQUENCE_MASK;
+								if (sequence == 0) {
+									long time = System.currentTimeMillis();
+									while (time <= lastTimestamp) {
+										time = System.currentTimeMillis();
+									}
+									lastTimestamp = time;
+									t = lastTimestamp - Y2010;
 								}
-								lastTimestamp = time;
+
+								long res = 0;
+								res += t << TIMESTAMP_SHIFT;
+								res += mechineId;
+
+								res += sequence;
+								queue.add(res);
 							}
-
-							long res = 0;
-							res += lastTimestamp << TIMESTAMP_SHIFT;
-							res += mechineId;
-
-							res += sequence;
-							queue.add(res);
+							size = queue.size();
+							filling.set(false);
 						}
-						size = queue.size();
-						filling.set(false);
-					}
-				});
+					});
+				}
 			}
 		}
 	}
