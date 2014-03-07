@@ -25,11 +25,18 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 
 	private static Logger logger = LoggerFactory.getLogger(OrderedThreadPoolExecutor.class);
 
-	private static final int NUM_EXECUTORS = 2;
+	private final static int DEFAULT_NUM_EXECUTOR = 1024;
+	private final static int DEFAULT_BATCH_LIMIT = 5;
+
 	/**
 	 * executors
 	 */
-	private final ChildExecutor[] childExecutors = new ChildExecutor[NUM_EXECUTORS];
+	private final ChildExecutor[] childExecutors;
+
+	/**
+	 * the limit of batch process tasks
+	 */
+	private final int batchLimit;
 
 	/**
 	 * 类似于 Executors.newFiexedThreadPool() 永远保持一定的线程池大小
@@ -38,8 +45,21 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 	 * @return OrderedThreadPoolExecutor
 	 */
 	public static OrderedThreadPoolExecutor newFixesOrderedThreadPool(int corePoolSize) {
+		return newFixesOrderedThreadPool(corePoolSize, DEFAULT_NUM_EXECUTOR, DEFAULT_BATCH_LIMIT);
+	}
+
+	/**
+	 * 类似于 Executors.newFiexedThreadPool() 永远保持一定的线程池大小
+	 *
+	 * @param corePoolSize  线程池大小
+	 * @param numOfExecutor executor的数量
+	 * @param batchLimit    批量执行任务，保证executor的公平性
+	 * @return OrderedThreadPoolExecutor
+	 */
+	public static OrderedThreadPoolExecutor newFixesOrderedThreadPool(int corePoolSize, int numOfExecutor, int batchLimit) {
+		logger.info("!!! init " + corePoolSize + " core OrderedThreadPoolExecutor");
 		return new OrderedThreadPoolExecutor(
-				corePoolSize, corePoolSize, 0L, TimeUnit.SECONDS, Executors.defaultThreadFactory()
+				corePoolSize, corePoolSize, 0L, TimeUnit.SECONDS, Executors.defaultThreadFactory(), numOfExecutor, batchLimit
 		);
 	}
 
@@ -51,16 +71,21 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 	 * @param keepAliveTime the amount of time for an inactive thread to shut itself down
 	 * @param unit          the {@link TimeUnit} of {@code keepAliveTime}
 	 * @param threadFactory the {@link ThreadFactory} of this pool
+	 * @param numOfExecutor the number of executor
+	 * @param batchLimit    the limit of batch process tasks
 	 */
 	private OrderedThreadPoolExecutor(
-			int minPoolSize, int maxPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
+			int minPoolSize, int maxPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, int numOfExecutor, int batchLimit) {
 
 		super(minPoolSize, maxPoolSize, keepAliveTime, unit,
 				new LinkedBlockingQueue<Runnable>(), threadFactory);
 
-		for (int i = 0; i < childExecutors.length; ++i) {
-			childExecutors[i] = new ChildExecutor(i);
+		this.childExecutors = new ChildExecutor[numOfExecutor];
+		for (int i = 0; i < this.childExecutors.length; ++i) {
+			this.childExecutors[i] = new ChildExecutor(i);
 		}
+
+		this.batchLimit = batchLimit;
 	}
 
 	@Override
@@ -81,7 +106,7 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 	}
 
 	private ChildExecutor getChildExecutor(Long key) {
-		return childExecutors[(int) (key % NUM_EXECUTORS)];
+		return childExecutors[(int) (key % childExecutors.length)];
 	}
 
 	/**
@@ -95,6 +120,13 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 		public OrderedRunable(Long key) {
 			this.key = key;
 		}
+
+		@Override
+		public String toString() {
+			return "OrderedRunable{" +
+					"key=" + key +
+					'}';
+		}
 	}
 
 	/**
@@ -103,6 +135,7 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 	protected final class ChildExecutor implements Executor, Runnable {
 		private final Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
 		private final AtomicBoolean isRunning = new AtomicBoolean();
+
 		private final int executorId;
 
 		public ChildExecutor(int executorId) {
@@ -114,52 +147,46 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 			tasks.add(command);
 //			logger.debug("add cmd " + command + " to ChildExecutor-" + executorId);
 
-			if (!isRunning.get()) {
+			// add to schedule if executor is not waiting to process
+			if (isRunning.compareAndSet(false, true)) {
 				doUnorderedExecute(this);
 			}
 		}
 
 		public void run() {
-			boolean acquired;
-
-			// check if its already running by using CAS. If so just return here. So in the worst case the thread
-			// is executed and do nothing
-			if (isRunning.compareAndSet(false, true)) {
-				acquired = true;
-				try {
-					Thread thread = Thread.currentThread();
-					for (; ; ) {
-						final Runnable task = tasks.poll();
-						// if the task is null we should exit the loop
-						if (task == null) {
-//							logger.debug("ChildExecutor-" + executorId + " exit");
-							break;
-						}
-
-//						logger.debug("execute cmd " + task + " in ChildExecutor-" + executorId);
-						boolean ran = false;
-						beforeExecute(thread, task);
-						try {
-							task.run();
-							ran = true;
-							afterExecute(task, null);
-						} catch (RuntimeException e) {
-							if (!ran) {
-								afterExecute(task, e);
-							}
-							throw e;
-						}
-					}
-				} finally {
-					// set it back to not running
-					isRunning.set(false);
+			Thread thread = Thread.currentThread();
+			for (int i = 0; i < batchLimit; ++i) {
+				final Runnable task = tasks.poll();
+				// if the task is null we should exit the loop
+				if (task == null) {
+					break;
 				}
 
-				if (acquired && !isRunning.get() && tasks.peek() != null) {
-					doUnorderedExecute(this);
+//				logger.debug("execute cmd " + task + " in ChildExecutor-" + executorId);
+				boolean ran = false;
+				beforeExecute(thread, task);
+				try {
+					task.run();
+					ran = true;
+					afterExecute(task, null);
+				} catch (RuntimeException e) {
+					if (!ran) {
+						afterExecute(task, e);
+					}
+					throw e;
 				}
 			}
+
+//			logger.debug("ChildExecutor-" + executorId + " exit");
+
+			// re-add to thread pool if tasks is not empty
+			if (!tasks.isEmpty()) {
+				doUnorderedExecute(this);
+			} else {
+				// set it back to not running
+				isRunning.set(false);
+			}
+
 		}
 	}
-
 }
