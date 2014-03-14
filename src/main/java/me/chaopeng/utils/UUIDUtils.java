@@ -100,7 +100,9 @@ public class UUIDUtils {
 		private volatile int size = 0;
 		private final AtomicBoolean filling = new AtomicBoolean(false);
 
-		/**GMT 2010-01-01 00:00:00*/
+		/**
+		 * GMT 2010-01-01 00:00:00
+		 */
 		private final static long Y2010 = 1259539200000L;
 
 		private final static int MECHINE_ID_BITS = 6;
@@ -141,40 +143,37 @@ public class UUIDUtils {
 		}
 
 		private void fill() {
-			if (size < 1000) {
-				if (filling.compareAndSet(false, true)) {
+			if (size < 1000 && filling.compareAndSet(false, true)) {
 
-					ThreadPool.getPool().execute(new Runnable() {
+				ThreadPool.getPool().execute(new Runnable() {
 
-						private long lastTimestamp = System.currentTimeMillis();
-						private long t = lastTimestamp - Y2010;
+					private long lastTimestamp = System.currentTimeMillis();
+					private long t = lastTimestamp - Y2010;
 
-						@Override
-						public void run() {
-							int s = queue.size();
-							while (++s < 10000) {
-								sequence = (sequence + 1) & SEQUENCE_MASK;
-								if (sequence == 0) {
-									long time = System.currentTimeMillis();
-									while (time <= lastTimestamp) {
-										time = System.currentTimeMillis();
-									}
-									lastTimestamp = time;
-									t = lastTimestamp - Y2010;
+					@Override
+					public void run() {
+						for(int i=0; i < 10000; ++i) {
+							sequence = (sequence + 1) & SEQUENCE_MASK;
+							if (sequence == 0) {
+								long time = System.currentTimeMillis();
+								while (time <= lastTimestamp) {
+									time = System.currentTimeMillis();
 								}
-
-								long res = 0;
-								res += t << TIMESTAMP_SHIFT;
-								res += mechineId;
-
-								res += sequence;
-								queue.add(res);
+								lastTimestamp = time;
+								t = lastTimestamp - Y2010;
 							}
-							size = queue.size();
-							filling.set(false);
+
+							long res = 0;
+							res += t << TIMESTAMP_SHIFT;
+							res += mechineId;
+
+							res += sequence;
+							queue.add(res);
 						}
-					});
-				}
+						size = queue.size();
+						filling.set(false);
+					}
+				});
 			}
 		}
 	}
