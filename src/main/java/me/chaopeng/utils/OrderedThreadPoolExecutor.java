@@ -4,7 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -21,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author chao
  * @see OrderedRunable
  */
-public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
+public final class OrderedThreadPoolExecutor extends ForkJoinPool {
 
 	private static Logger logger = LoggerFactory.getLogger(OrderedThreadPoolExecutor.class);
 
@@ -59,26 +62,24 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 	public static OrderedThreadPoolExecutor newFixesOrderedThreadPool(int corePoolSize, int numOfExecutor, int batchLimit) {
 		logger.info("!!! init " + corePoolSize + " core OrderedThreadPoolExecutor");
 		return new OrderedThreadPoolExecutor(
-				corePoolSize, corePoolSize, 0L, TimeUnit.SECONDS, Executors.defaultThreadFactory(), numOfExecutor, batchLimit
+				corePoolSize, numOfExecutor, batchLimit
 		);
 	}
 
 	/**
 	 * Creates a new instance.
 	 *
-	 * @param minPoolSize   the minimum number of active threads
-	 * @param maxPoolSize   the maximum number of active threads
-	 * @param keepAliveTime the amount of time for an inactive thread to shut itself down
-	 * @param unit          the {@link TimeUnit} of {@code keepAliveTime}
-	 * @param threadFactory the {@link ThreadFactory} of this pool
 	 * @param numOfExecutor the number of executor
 	 * @param batchLimit    the limit of batch process tasks
 	 */
-	private OrderedThreadPoolExecutor(
-			int minPoolSize, int maxPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, int numOfExecutor, int batchLimit) {
+	private OrderedThreadPoolExecutor(int corePoolSize, int numOfExecutor, int batchLimit) {
 
-		super(minPoolSize, maxPoolSize, keepAliveTime, unit,
-				new LinkedBlockingQueue<Runnable>(), threadFactory);
+		super(corePoolSize, ForkJoinPool.defaultForkJoinWorkerThreadFactory, new Thread.UncaughtExceptionHandler() {
+			@Override
+			public void uncaughtException(Thread t, Throwable e) {
+				logger.error(e.getMessage(), e);
+			}
+		}, true);
 
 		this.childExecutors = new ChildExecutor[numOfExecutor];
 		for (int i = 0; i < this.childExecutors.length; ++i) {
@@ -154,7 +155,6 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 		}
 
 		public void run() {
-			Thread thread = Thread.currentThread();
 			for (int i = 0; i < batchLimit; ++i) {
 				final Runnable task = tasks.poll();
 				// if the task is null we should exit the loop
@@ -164,14 +164,12 @@ public final class OrderedThreadPoolExecutor extends ThreadPoolExecutor {
 
 //				logger.debug("execute cmd " + task + " in ChildExecutor-" + executorId);
 				boolean ran = false;
-				beforeExecute(thread, task);
 				try {
 					task.run();
 					ran = true;
-					afterExecute(task, null);
 				} catch (RuntimeException e) {
 					if (!ran) {
-						afterExecute(task, e);
+						logger.error("execute cmd " + task + " error:" + e.getMessage(), e);
 					}
 					throw e;
 				}
