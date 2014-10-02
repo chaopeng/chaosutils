@@ -2,14 +2,16 @@
 
 ChaosUtils目前包含:
 
-* Zip Deflater压缩/解压
 * BaseX [2-62]进制与10进制的转换
 * ClassPathScanner 包扫描器
-* DirUtils 文件目录工具
-* ScriptsUtils java中执行js脚本工具
-* UUIDUtils uuid工具，含uuid压缩
 * CloseUtils 资源关闭工具，方便关闭可以关闭的资源
+* DirUtils 文件目录工具
+* OrderedThreadPoolExecutor 轻量级Actor模型的线程池
+* ScriptsUtils java中执行js脚本工具
+* SortedSet Redis的SortedSet的JAVA实现
 * StringUtils 字符串工具，字符串拼接与大小写转换
+* UUIDUtils uuid工具，含uuid压缩，含山寨版Twitter的snowflake
+* Zip Deflater压缩/解压
 
 ChaosUtils将不会包含:
 

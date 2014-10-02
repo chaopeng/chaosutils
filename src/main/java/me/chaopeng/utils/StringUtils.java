@@ -1,6 +1,7 @@
 package me.chaopeng.utils;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * string工具
@@ -43,29 +44,32 @@ public class StringUtils {
 		return str.substring(0, 1).toUpperCase().concat(str.substring(1));
 	}
 
+	private static final Pattern ALL_UP_PATTERN = Pattern.compile("[A-Z]*");
+
 	/**
 	 * 下划线风格转小写驼峰
 	 */
 	public static String underlineToLowerCamal(String s){
-		s = s.toLowerCase();
-		String[] ss = s.split("_");
-		for (int i = 1; i < ss.length; i++) {
-			ss[i] = upFirst(ss[i]);
+		if (s.contains("_")) {
+			s = s.toLowerCase();
+			String[] ss = s.split("_");
+			for (int i = 1; i < ss.length; i++) {
+				ss[i] = upFirst(ss[i]);
+			}
+			return join("", ss);
+		} else if(ALL_UP_PATTERN.matcher(s).matches()){
+			s = s.toLowerCase();
 		}
-		return join("", ss);
+		return s;
 	}
 
 	/**
 	 * 下划线风格转大写驼峰
 	 */
 	public static String underlineToUpperCamal(String s){
-		s = s.toLowerCase();
-		String[] ss = s.split("_");
-		for (int i = 0; i < ss.length; i++) {
-			ss[i] = upFirst(ss[i]);
-		}
-		return join("", ss);
+		return upFirst(underlineToLowerCamal(s));
 	}
+
 
 	/**
 	 * 驼峰转下划线,未处理大小写

@@ -8,25 +8,39 @@ targetCompatibility = 1.7
 
 ext.projectName = "$name"
 
-// 需要打到zip包的jars
+// jars for zip
 ext.jarsForZip = ["chaosutils.jar"]
 
-repositories {
-	maven {
-		// 使用开源中国仓库
-		url 'http://maven.oschina.net/content/groups/public/'
+apply plugin: 'com.github.ben-manes.versions'
+
+buildscript {
+	repositories {
+		jcenter()
+	}
+
+	dependencies {
+		classpath 'com.github.ben-manes:gradle-versions-plugin:0.5'
 	}
 }
 
-// 依赖配置
+// check dependencyUpdates : gradle dependencyUpdates -Drevision=release
+
+repositories {
+	mavenCentral()
+	// use maven.oschina.net
+	// maven {
+	//	 url 'http://maven.oschina.net/content/groups/public/'
+	// }
+}
+
 dependencies {
 	compile (
-		'com.google.guava:guava:15.+',
-		'commons-codec:commons-codec:1.8',
-		'org.slf4j:slf4j-api:1.7.5',
-		'ch.qos.logback:logback-core:1.0.13',
-		'ch.qos.logback:logback-classic:1.0.13',
-		'org.springframework:spring-context:3.2.5.RELEASE',
+		'com.google.guava:guava:18.+',
+		'commons-codec:commons-codec:1.9',
+		'org.slf4j:slf4j-api:1.7.7',
+		'ch.qos.logback:logback-core:1.1.2',
+		'ch.qos.logback:logback-classic:1.1.2',
+		'org.springframework:spring-context:4.1.1.RELEASE',
 	)
 	testCompile (
 		'junit:junit:4.+'
@@ -39,13 +53,11 @@ jar {
 //	}
 }
 
-// 初始化任务
 task initPath {
-  sourceSets*.java.srcDirs*.each { it.mkdirs() }
-  sourceSets*.resources.srcDirs*.each { it.mkdirs()}
+	sourceSets*.java.srcDirs*.each { it.mkdirs() }
+	sourceSets*.resources.srcDirs*.each { it.mkdirs()}
 }
 
-// 复制依赖包到指定目录
 ext.libPath = "build/libs"
 task downloadDependencies {
 	copy{
@@ -56,7 +68,6 @@ task downloadDependencies {
 
 assemble.dependsOn(downloadDependencies)
 
-// 导出
 task export {
 	dependsOn assemble
 	
@@ -66,7 +77,6 @@ task export {
 	}
 }
 
-// 打zip包
 task exportZip (type: Zip){
 	dependsOn export
 	
@@ -75,9 +85,8 @@ task exportZip (type: Zip){
 	destinationDir new File(projectDir, exportDir)
 }
 
-// javadoc 首页定制
 javadoc {
-    options.overview = "overview.html"
+		options.overview = "overview.html"
 }
 
 // findbugs
