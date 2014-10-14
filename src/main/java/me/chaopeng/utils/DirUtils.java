@@ -147,18 +147,20 @@ public class DirUtils {
 	public static void rm(String path, String... args) {
 		File file = new File(path);
 		
-		// 目录的话相当于 rm -r path/* 不会删除文件夹 正则表达式只对一层有效
+		// 目录的话相当于 rm -r path
 		if (file.isDirectory()) {
 			File[] childFiles = ls(path, args);
 			for (File childFile : childFiles) {
 				if (childFile.isDirectory()) {
-					rm(childFile.getPath());
+					rm(childFile.getPath(), args);
 				}
 
 				if(!childFile.delete()){
 					logger.error("file delete failed. filename="+childFile.getAbsolutePath());
 				}
 			}
+
+            rmdir(path);
 		} else {
 			if(!file.delete()){
 				logger.error("file delete failed. filename="+file.getAbsolutePath());
