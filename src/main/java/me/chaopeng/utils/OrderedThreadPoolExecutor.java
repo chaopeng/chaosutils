@@ -171,7 +171,7 @@ public final class OrderedThreadPoolExecutor extends ForkJoinPool {
 					if (!ran) {
 						logger.error("execute cmd " + task + " error:" + e.getMessage(), e);
 					}
-					throw e;
+//					throw e;
 				}
 			}
 
