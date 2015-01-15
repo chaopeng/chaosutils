@@ -178,12 +178,13 @@ public final class OrderedThreadPoolExecutor extends ForkJoinPool {
 //			logger.debug("ChildExecutor-" + executorId + " exit");
 			
 			// re-add to thread pool if tasks is not empty
+			
+			// maybe need finally
 			isRunning.set(false);
 			
 			if (!tasks.isEmpty()) {
 				if (isRunning.compareAndSet(false, true)) {
 					doUnorderedExecute(this);
-					isRunning.set(true);
 				}
 			}
 
