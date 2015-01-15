@@ -181,8 +181,10 @@ public final class OrderedThreadPoolExecutor extends ForkJoinPool {
 			isRunning.set(false);
 			
 			if (!tasks.isEmpty()) {
-				doUnorderedExecute(this);
-				isRunning.set(true);
+				if (isRunning.compareAndSet(false, true)) {
+					doUnorderedExecute(this);
+					isRunning.set(true);
+				}
 			}
 
 		}
