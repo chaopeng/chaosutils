@@ -154,9 +154,10 @@ public class DirUtils {
 				if (childFile.isDirectory()) {
 					rm(childFile.getPath(), args);
 				}
-
-				if(!childFile.delete()){
-					logger.error("file delete failed. filename="+childFile.getAbsolutePath());
+				else {
+					if(!childFile.delete()){
+						logger.error("file delete failed. filename="+childFile.getAbsolutePath());
+					}
 				}
 			}
 
